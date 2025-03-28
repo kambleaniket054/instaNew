@@ -121,6 +121,7 @@ StreamController<bool> statecontroller = StreamController.broadcast();
           var tab = state as navigationTabindex;
           // _selectedIndex = tab.tabindex;
           return IndexedStack(
+
             index: tab.tabindex,
             children: _screens,
           );
