@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:instanew/MyRoutes.dart';
+import 'package:instanew/Screens/videoEditorScreen.dart';
 import 'package:instanew/domain/bottomNavigations/bottomNavigationBloc.dart';
 import 'package:instanew/domain/bottomNavigations/bottomNavigationEvent.dart';
 import 'package:instanew/domain/bottomNavigations/bottomNavigationState.dart';
@@ -101,7 +102,7 @@ StreamController<bool> statecontroller = StreamController.broadcast();
       // ProfileScreen(),
       feeds(),
       splash(Colors.red),
-      splash(Colors.yellow),
+      VideoEditorScreen(),
       splash(Colors.green),
       splash(Colors.teal)
     ];
