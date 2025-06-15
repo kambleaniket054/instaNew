@@ -3,13 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:instanew/MyRoutes.dart';
-import 'package:instanew/Screens/videoEditorScreen.dart';
+import 'package:instanew/videoeditorDoc/video_editor_screen.dart';
 import 'package:instanew/domain/bottomNavigations/bottomNavigationBloc.dart';
 import 'package:instanew/domain/bottomNavigations/bottomNavigationEvent.dart';
 import 'package:instanew/domain/bottomNavigations/bottomNavigationState.dart';
 import 'package:instanew/splash.dart';
 
 import 'Screens/Feeds.dart';
+import 'create_edit.dart';
 
 void main() {
   runApp(const MyApp());
@@ -102,7 +103,7 @@ StreamController<bool> statecontroller = StreamController.broadcast();
       // ProfileScreen(),
       feeds(),
       splash(Colors.red),
-      VideoEditorScreen(),
+      CreateVideoScreen(),
       splash(Colors.green),
       splash(Colors.teal)
     ];
@@ -122,7 +123,6 @@ StreamController<bool> statecontroller = StreamController.broadcast();
           var tab = state as navigationTabindex;
           // _selectedIndex = tab.tabindex;
           return IndexedStack(
-
             index: tab.tabindex,
             children: _screens,
           );

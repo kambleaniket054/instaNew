@@ -1,0 +1,2 @@
+C:/Users/Aniket/instaNew/android/app/.cxx/Debug/4s4z4142/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Users/Aniket/instaNew/android/app/.cxx/Debug/4s4z4142/armeabi-v7a/CMakeFiles/rebuild_cache.dir
