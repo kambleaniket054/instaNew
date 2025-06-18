@@ -39,6 +39,7 @@ dependencies:
   cached_network_image:
   video_player: ^2.7.0
   video_compress: any
+  uuid: any
   file_picker: any
   equatable: ^2.0.5
   audioplayers: ^5.2.0

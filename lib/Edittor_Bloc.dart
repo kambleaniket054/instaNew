@@ -1,195 +1,165 @@
 import 'dart:async';
-import 'package:bloc/bloc.dart';
-import 'package:equatable/equatable.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:uuid/uuid.dart';
 import 'package:video_player/video_player.dart';
-import 'package:flutter/foundation.dart';
 
 import 'EdittorEvents.dart';
 import 'EdittorState.dart';
 
 
-class TrackItem {
-  final String id;
-  final String content;
-  final String type;
-  double pos_dx = 0;
-  double pos_dy = 0;
-  double start;
-  double end;
-
-  TrackItem({
-    required this.id,
-    required this.content,
-    required this.type,
-     this.pos_dx = 0,
-     this.pos_dy = 0,
-    required this.start,
-    required this.end,
-  });
-  TrackItem copyWith({
-    double? start,
-    double? end,
-    double? pos_dx,
-    double? pos_dy,
-  }) {
-    return TrackItem(
-      id: id,
-      type: type,
-      content: content,
-      start: start ?? this.start,
-      end: end ?? this.end,
-      pos_dx: pos_dx ?? this.pos_dx,
-      pos_dy: pos_dy ?? this.pos_dy,
-    );
-  }
-
-}
-
 class EditorBloc extends Bloc<EditorEvent, EditorState> {
   VideoPlayerController? _controller;
-  Timer? _positionUpdater;
-  String selectedId = '';
+  Timer? _timer;
 
   EditorBloc() : super(EditorInitial()) {
     on<LoadVideoEvent>(_onLoadVideo);
     on<TogglePlayPauseEvent>(_onTogglePlayPause);
-    on<AddOverlayEvent>(_onAddOverlay);
-    on<DeleteSelectedOverlayEvent>(_onDeleteOverlay);
     on<SelectTrackEvent>(_onSelectTrack);
     on<DragTrackEvent>(_onDragTrack);
-    on<OverlayDragTrackEvent>(_onOverlayDragTrack);
-    on<CropStartTrackEvent>(_onCropStart);
-    on<CropEndTrackEvent>(_onCropEnd);
-    on<UpdatePositionEvent>(_onUpdatePosition);
+    on<CropStartTrackEvent>(_onCropStartTrack);
+    on<CropEndTrackEvent>(_onCropEndTrack);
+    on<OverlayDragEvent>(_onOverlayDrag);
+    on<AddOverlayEvent>(_onAddOverlay);
+    on<DeleteOverlayEvent>(_onDeleteOverlay);
+    on<UpdateFrameEvent>(_onUpdateFrame);
   }
 
   Future<void> _onLoadVideo(LoadVideoEvent event, Emitter<EditorState> emit) async {
-    _controller = VideoPlayerController.asset("assets/demo.mp4");
-    await _controller!.initialize();
-    _controller!.addListener(() => add(UpdatePositionEvent()));
-
-    _positionUpdater?.cancel();
-    _positionUpdater = Timer.periodic(const Duration(milliseconds: 500), (_) {
-      if (_controller != null && _controller!.value.isInitialized) {
-        add(UpdatePositionEvent());
-      }
-    });
-
-    emit(EditorLoaded(
-      controller: _controller!,
-      tracks: [],
-      visibleOverlays: [],
-      videoPosition: 0.0, selectedTrackId: '',
-    ));
-  }
-
-  void _onTogglePlayPause(TogglePlayPauseEvent event, Emitter<EditorState> emit) {
-    if (_controller == null) return;
-    if (_controller!.value.isPlaying) {
-      _controller!.pause();
-    } else {
+    emit(EditorLoading());
+    try {
+      _controller = VideoPlayerController.networkUrl(
+        Uri.parse('https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4'),
+      );
+      await _controller!.initialize();
+      _controller!.setLooping(true);
       _controller!.play();
+
+      final tracks = [
+        EditorTrack(
+          id: const Uuid().v4(),
+          type: 'video',
+          content: 'Video',
+          start: 0.0,
+          end: 1.0,
+        ),
+      ];
+
+      emit(EditorLoaded(
+        controller: _controller!,
+        tracks: tracks,
+        overlays: [],
+        isPlaying: true,
+        videoPosition: 0.0,
+        selectedTrackId: null,
+      ));
+
+      _timer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+        if (_controller!.value.isInitialized && _controller!.value.isPlaying) {
+          add(UpdateFrameEvent());
+        }
+      });
+    } catch (e) {
+      emit(EditorError(e.toString()));
     }
-    add(UpdatePositionEvent());
   }
 
-  void _onAddOverlay(AddOverlayEvent event, Emitter<EditorState> emit) {
+  Future<void> _onTogglePlayPause(TogglePlayPauseEvent event, Emitter<EditorState> emit) async {
     if (state is! EditorLoaded) return;
     final s = state as EditorLoaded;
-    final id = UniqueKey().toString();
-    final start = s.videoPosition;
-    final end = start + 0.1;
-    final track = TrackItem(id: id, content: event.content, type: event.type, start: start, end: end);
-    emit(s.copyWith(
-      tracks: [...s.tracks, track],
-      visibleOverlays: [...s.visibleOverlays, track],
-    ));
-  }
-
-  void _onDeleteOverlay(DeleteSelectedOverlayEvent event, Emitter<EditorState> emit) {
-    if (state is! EditorLoaded) return;
-    final s = state as EditorLoaded;
-    emit(s.copyWith(
-      tracks: s.tracks.where((t) => t.id != selectedId).toList(),
-      visibleOverlays: s.visibleOverlays.where((t) => t.id != selectedId).toList(),
-    ));
+    s.isPlaying ? await _controller!.pause() : await _controller!.play();
+    emit(s.copyWith(isPlaying: _controller!.value.isPlaying));
   }
 
   void _onSelectTrack(SelectTrackEvent event, Emitter<EditorState> emit) {
-    selectedId = event.id;
+    if (state is! EditorLoaded) return;
+    final s = state as EditorLoaded;
+    emit(s.copyWith(selectedTrackId: event.trackId));
   }
 
   void _onDragTrack(DragTrackEvent event, Emitter<EditorState> emit) {
     if (state is! EditorLoaded) return;
     final s = state as EditorLoaded;
     final updatedTracks = s.tracks.map((track) {
-      if (track.id == event.id) {
-        final delta = event.delta;
-        final newStart = (track.start + delta).clamp(0.0, 1.0 - (track.end - track.start));
-        final newEnd = newStart + (track.end - track.start);
-        return TrackItem(id: track.id, content: track.content, type: track.type, start: newStart, end: newEnd);
+      if (track.id == event.trackId) {
+        final duration = track.end - track.start;
+        final newStart = (track.start + event.delta).clamp(0.0, 1.0 - duration);
+        final newEnd = newStart + duration;
+        return track.copyWith(start: newStart, end: newEnd);
       }
       return track;
     }).toList();
     emit(s.copyWith(tracks: updatedTracks));
   }
 
-  void _onOverlayDragTrack(OverlayDragTrackEvent event, Emitter<EditorState> emit) {
+  void _onCropStartTrack(CropStartTrackEvent event, Emitter<EditorState> emit) {
     if (state is! EditorLoaded) return;
     final s = state as EditorLoaded;
     final updatedTracks = s.tracks.map((track) {
-      if (track.id == event.id) {
-        final dx = event.dx;
-        final dy = event.dy;
-        // final newStart = (track.start + delta).clamp(0.0, 1.0 - (track.end - track.start));
-        // final newEnd = newStart + (track.end - track.start);
-        return track.copyWith(pos_dx: dx,pos_dy: dy);
-        return TrackItem(id: track.id, content: track.content, type: track.type, start: track.start, end: track.end,pos_dx: dx,pos_dy: dy);
+      if (track.id == event.trackId) {
+        final newStart = (track.start + event.delta).clamp(0.0, track.end - 0.1);
+        return track.copyWith(start: newStart);
       }
       return track;
     }).toList();
     emit(s.copyWith(tracks: updatedTracks));
   }
 
-  void _onCropStart(CropStartTrackEvent event, Emitter<EditorState> emit) {
+  void _onCropEndTrack(CropEndTrackEvent event, Emitter<EditorState> emit) {
     if (state is! EditorLoaded) return;
     final s = state as EditorLoaded;
     final updatedTracks = s.tracks.map((track) {
-      if (track.id == event.id) {
-        final newStart = (track.start + event.delta).clamp(0.0, track.end - 0.05);
-        return TrackItem(id: track.id, content: track.content, type: track.type, start: newStart, end: track.end);
+      if (track.id == event.trackId) {
+        final newEnd = (track.end + event.delta).clamp(track.start + 0.1, 1.0);
+        return track.copyWith(end: newEnd);
       }
       return track;
     }).toList();
     emit(s.copyWith(tracks: updatedTracks));
   }
 
-  void _onCropEnd(CropEndTrackEvent event, Emitter<EditorState> emit) {
+  void _onOverlayDrag(OverlayDragEvent event, Emitter<EditorState> emit) {
     if (state is! EditorLoaded) return;
     final s = state as EditorLoaded;
-    final updatedTracks = s.tracks.map((track) {
-      if (track.id == event.id) {
-        final newEnd = (track.end + event.delta).clamp(track.start + 0.05, 1.0);
-        return TrackItem(id: track.id, content: track.content, type: track.type, start: track.start, end: newEnd);
+    final updatedOverlays = s.overlays.map((overlay) {
+      if (overlay.id == event.overlayId) {
+        return overlay.copyWith(posDx: event.dx, posDy: event.dy);
       }
-      return track;
+      return overlay;
     }).toList();
-    emit(s.copyWith(tracks: updatedTracks));
+    emit(s.copyWith(overlays: updatedOverlays));
   }
 
-  void _onUpdatePosition(UpdatePositionEvent event, Emitter<EditorState> emit) {
-    if (state is! EditorLoaded || _controller == null) return;
+  void _onAddOverlay(AddOverlayEvent event, Emitter<EditorState> emit) {
+    if (state is! EditorLoaded) return;
     final s = state as EditorLoaded;
-    final duration = _controller!.value.duration.inMilliseconds;
-    final position = _controller!.value.position.inMilliseconds;
-    final progress = duration > 0 ? position / duration : 0.0;
-    emit(s.copyWith(videoPosition: progress));
+    final overlay = OverlayItem(
+      id: const Uuid().v4(),
+      type: event.type,
+      content: event.content,
+      posDx: 0.5,
+      posDy: 0.5,
+    );
+    emit(s.copyWith(overlays: [...s.overlays, overlay]));
+  }
+
+  void _onDeleteOverlay(DeleteOverlayEvent event, Emitter<EditorState> emit) {
+    if (state is! EditorLoaded) return;
+    final s = state as EditorLoaded;
+    final updatedOverlays = s.overlays.where((overlay) => overlay.id != s.selectedTrackId).toList();
+    emit(s.copyWith(overlays: updatedOverlays, selectedTrackId: null));
+  }
+
+  void _onUpdateFrame(UpdateFrameEvent event, Emitter<EditorState> emit) {
+    if (state is! EditorLoaded) return;
+    final s = state as EditorLoaded;
+    final position = _controller!.value.position.inSeconds / _controller!.value.duration.inSeconds;
+    emit(s.copyWith(videoPosition: position.clamp(0.0, 1.0)));
   }
 
   @override
-  Future<void> close() {
-    _controller?.dispose();
-    _positionUpdater?.cancel();
-    return super.close();
+  Future<void> close() async {
+    _timer?.cancel();
+    await _controller?.dispose();
+    await super.close();
   }
 }

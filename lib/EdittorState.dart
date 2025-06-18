@@ -1,9 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'package:video_player/video_player.dart';
-import 'Edittor_Bloc.dart';
-import 'models/track_item.dart';
 
-/// Base State
 abstract class EditorState extends Equatable {
   const EditorState();
 
@@ -11,54 +8,128 @@ abstract class EditorState extends Equatable {
   List<Object?> get props => [];
 }
 
-/// Initial state before anything loads
 class EditorInitial extends EditorState {}
 
-/// State while loading video
 class EditorLoading extends EditorState {}
 
-/// Loaded state with video and overlays
 class EditorLoaded extends EditorState {
   final VideoPlayerController controller;
-  final List<TrackItem> tracks; // All media + overlays
-  final List<TrackItem> visibleOverlays; // Overlays visible at current time
+  final List<EditorTrack> tracks;
+  final List<OverlayItem> overlays;
+  final bool isPlaying;
+  final double videoPosition;
   final String? selectedTrackId;
-  final double videoPosition; // between 0.0 - 1.0
 
   const EditorLoaded({
     required this.controller,
     required this.tracks,
-    required this.visibleOverlays,
-    required this.selectedTrackId,
+    required this.overlays,
+    required this.isPlaying,
     required this.videoPosition,
+    this.selectedTrackId,
   });
 
   EditorLoaded copyWith({
     VideoPlayerController? controller,
-    List<TrackItem>? tracks,
-    List<TrackItem>? visibleOverlays,
-    String? selectedTrackId,
+    List<EditorTrack>? tracks,
+    List<OverlayItem>? overlays,
+    bool? isPlaying,
     double? videoPosition,
+    String? selectedTrackId,
   }) {
     return EditorLoaded(
       controller: controller ?? this.controller,
       tracks: tracks ?? this.tracks,
-      visibleOverlays: visibleOverlays ?? this.visibleOverlays,
-      selectedTrackId: selectedTrackId ?? this.selectedTrackId,
+      overlays: overlays ?? this.overlays,
+      isPlaying: isPlaying ?? this.isPlaying,
       videoPosition: videoPosition ?? this.videoPosition,
+      selectedTrackId: selectedTrackId ?? this.selectedTrackId,
     );
   }
 
   @override
-  List<Object?> get props => [controller, tracks, visibleOverlays, selectedTrackId, videoPosition];
+  List<Object?> get props => [
+    controller,
+    tracks,
+    overlays,
+    isPlaying,
+    videoPosition,
+    selectedTrackId,
+  ];
 }
 
-/// State on error
 class EditorError extends EditorState {
-  final String message;
-
-  const EditorError(this.message);
+  final String error;
+  const EditorError(this.error);
 
   @override
-  List<Object?> get props => [message];
+  List<Object?> get props => [error];
+}
+
+class EditorTrack extends Equatable {
+  final String id;
+  final String type;
+  final String content;
+  final double start;
+  final double end;
+
+  const EditorTrack({
+    required this.id,
+    required this.type,
+    required this.content,
+    required this.start,
+    required this.end,
+  });
+
+  EditorTrack copyWith({
+    String? id,
+    String? type,
+    String? content,
+    double? start,
+    double? end,
+  }) =>
+      EditorTrack(
+        id: id ?? this.id,
+        type: type ?? this.type,
+        content: content ?? this.content,
+        start: start ?? this.start,
+        end: end ?? this.end,
+      );
+
+  @override
+  List<Object> get props => [id, type, content, start, end];
+}
+
+class OverlayItem extends Equatable {
+  final String id;
+  final String type;
+  final String content;
+  final double posDx;
+  final double posDy;
+
+  const OverlayItem({
+    required this.id,
+    required this.type,
+    required this.content,
+    required this.posDx,
+    required this.posDy,
+  });
+
+  OverlayItem copyWith({
+    String? id,
+    String? type,
+    String? content,
+    double? posDx,
+    double? posDy,
+  }) =>
+      OverlayItem(
+        id: id ?? this.id,
+        type: type ?? this.type,
+        content: content ?? this.content,
+        posDx: posDx ?? this.posDx,
+        posDy: posDy ?? this.posDy,
+      );
+
+  @override
+  List<Object> get props => [id, type, content, posDx, posDy];
 }
